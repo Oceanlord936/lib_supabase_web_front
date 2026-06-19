@@ -34,11 +34,18 @@ export default function Page() {
   } | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
+  // functions ====================================
+
   // Debouncing : wait till user input end so we don't send too many request to backend when drap slider
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedRadius(radiusKm), 300);
     return () => clearTimeout(timer);
   }, [radiusKm]);
+
+  useEffect(() => {
+    if (!advancedSearch || !search.trim()) return;
+    handleSearch();
+  }, [debouncedRadius]);
 
   const title = !advancedSearch
     ? "Libraries Near You"
@@ -104,7 +111,8 @@ export default function Page() {
 
   const handleSearch = async (overrideRadius?: number) => {
     // if not override , use state number
-    const radius = overrideRadius ?? radiusKm;
+    // we use debouncedRadius to update
+    const radius = overrideRadius ?? debouncedRadius;
     if (!search.trim()) return;
 
     const centerLat = useCurrentLocation
@@ -118,11 +126,12 @@ export default function Page() {
     setLoading(true);
     setError("");
 
-    // call the rpc edge function from supabase
+    // call the rpc edge function from supabase, use radius
     const { data, error } = await supabase.rpc("search_libraries", {
       query: search,
       lat: centerLat,
       lng: centerLng,
+      radius_km: radius, // add  (radius is already computed )
     });
 
     if (error) {
@@ -181,11 +190,12 @@ export default function Page() {
     }
   };
 
+  // jsx =========================================
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-4xl px-6 py-10">
         <h1 className="text-3xl font-bold text-foreground">{title}</h1>
-
+        {/* show user input place when advance search is on  */}
         {advancedSearch && (
           <div className="relative mt-6">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -198,7 +208,7 @@ export default function Page() {
             />
           </div>
         )}
-
+        {/* slider */}
         <div className="mt-4 flex items-center gap-4">
           <span className="text-sm text-muted-foreground w-28">
             Radius: {radiusKm} km
@@ -210,12 +220,11 @@ export default function Page() {
             value={[radiusKm]}
             onValueChange={(val) => {
               setRadiusKm(val[0]);
-              if (advancedSearch && search.trim()) handleSearch(val[0]);
             }}
             className="flex-1"
           />
         </div>
-
+        {/* when advance check box is on  */}
         {advancedSearch && (
           <div className="mt-3 flex items-center gap-2">
             <Checkbox
@@ -231,7 +240,6 @@ export default function Page() {
             </label>
           </div>
         )}
-
         {advancedSearch && !useCurrentLocation && (
           <div className="mt-3 flex gap-3">
             <Input
@@ -246,13 +254,11 @@ export default function Page() {
             />
           </div>
         )}
-
         {advancedSearch && (
           <Button className="mt-3" onClick={() => handleSearch()}>
             Search
           </Button>
         )}
-
         <div className="mt-3 flex items-center gap-2">
           <Checkbox
             id="advancedSearch"
@@ -269,7 +275,6 @@ export default function Page() {
             Advanced Manual Search
           </label>
         </div>
-
         <div className="mt-6">
           <Map
             center={location}
@@ -278,7 +283,6 @@ export default function Page() {
             onMapClick={handleMapClick}
           />
         </div>
-
         <div className="mt-8 flex flex-col gap-4">
           {loading && (
             <p className="text-center text-muted-foreground">

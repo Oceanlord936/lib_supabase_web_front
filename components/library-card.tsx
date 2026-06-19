@@ -42,18 +42,25 @@ export function LibraryCard({
   const [showCommentsPopup, setShowCommentsPopup] = useState(false);
   const [comments, setComments] = useState<Rating[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [ratingError, setRatingError] = useState("");
 
   const fetchComments = async () => {
     setCommentsLoading(true);
+    setCommentsError(null);
     setShowCommentsPopup(true);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("ratings")
       .select("id, score, comment, display_name, created_at")
       .eq("library_id", id)
       .order("created_at", { ascending: false });
 
-    setComments((data as Rating[]) ?? []);
+    if (error) {
+      setCommentsError(error.message);
+    } else {
+      setComments((data as Rating[]) ?? []);
+    }
     setCommentsLoading(false);
   };
 
@@ -66,13 +73,20 @@ export function LibraryCard({
         <p className="mt-1 text-sm text-muted-foreground">{openingHours}</p>
       )}
       {website && (
-        <a href={website} target="_blank" className="mt-1 text-sm text-blue-500 hover:underline block">
+        <a
+          href={website}
+          target="_blank"
+          className="mt-1 text-sm text-blue-500 hover:underline block"
+        >
           {website}
         </a>
       )}
 
       <div className="mt-4 flex items-center justify-between">
-        <Badge variant="secondary" className="rounded-full bg-muted text-muted-foreground font-medium">
+        <Badge
+          variant="secondary"
+          className="rounded-full bg-muted text-muted-foreground font-medium"
+        >
           {libraryType ?? "LIBRARY"}
         </Badge>
         <span className="text-sm text-muted-foreground">
@@ -107,7 +121,11 @@ export function LibraryCard({
           style={{ width: `${(rating / 5) * 100}%` }}
         >
           {[1, 2, 3, 4, 5].map((i) => (
-            <Star key={i} className="h-4 w-4 flex-shrink-0" fill="currentColor" />
+            <Star
+              key={i}
+              className="h-4 w-4 flex-shrink-0"
+              fill="currentColor"
+            />
           ))}
         </div>
       </div>
@@ -124,20 +142,41 @@ export function LibraryCard({
       {/* Rating popup */}
       {showRatingPopup && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/95 rounded-lg z-10">
-          <p className="text-sm font-medium text-foreground mb-3">Rate this library</p>
+          <p className="text-sm font-medium text-foreground mb-3">
+            Rate this library
+          </p>
+
+          {/* show stars , they are also clickable -> user can hover and choose to be selected */}
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((i) => (
               <Star
                 key={i}
                 className="h-7 w-7 cursor-pointer text-yellow-400"
-                fill={i <= (hoveredRating || selectedRating) ? "currentColor" : "none"}
+                fill={
+                  i <= (hoveredRating || selectedRating)
+                    ? "currentColor"
+                    : "none"
+                }
                 stroke="currentColor"
                 onMouseEnter={() => setHoveredRating(i)}
                 onMouseLeave={() => setHoveredRating(0)}
-                onClick={() => setSelectedRating(i)}
+                onClick={() => {
+                  // when clicked , set the selectedrating state to be that many star
+                  // also reset error to empty (as it must be 1 to 5 start , safe)
+                  setSelectedRating(i);
+                  setRatingError("");
+                }}
               />
             ))}
           </div>
+
+          {/* the hidden rating errer when user forget to pick start 
+          notice the <p> is always there , just not having any text , 
+          
+          it will reset to empty when do a valide submit 
+          */}
+          <p className="mt-1 text-xs text-red-500 h-4">{ratingError}</p>
+
           <input
             type="text"
             placeholder="Add a comment (optional)"
@@ -149,6 +188,12 @@ export function LibraryCard({
             <button
               className="px-3 py-1 text-sm bg-foreground text-background rounded"
               onClick={() => {
+                // when user not select any start -> set the RatingError
+                if (selectedRating === 0) {
+                  setRatingError("Please pick 1 to 5 stars.");
+                  return;
+                }
+
                 onRatingSubmit?.(id, selectedRating, comment || "no comment");
                 setShowRatingPopup(false);
                 setComment("");
@@ -181,13 +226,21 @@ export function LibraryCard({
           {commentsLoading && (
             <p className="text-sm text-muted-foreground">Loading...</p>
           )}
+          {commentsError && (
+            <p className="text-sm text-red-500">{commentsError}</p>
+          )}
+          {!commentsLoading && !commentsError && comments.length === 0 && (
+            <p className="text-sm text-muted-foreground">No comments yet.</p>
+          )}
           {comments.map((c) => (
             <div key={c.id} className="mb-3 border-b border-border pb-2">
               <div className="flex justify-between">
                 <span className="text-sm font-medium text-foreground">
                   {c.display_name ?? "User"}
                 </span>
-                <span className="text-xs text-yellow-500">{"★".repeat(c.score)}</span>
+                <span className="text-xs text-yellow-500">
+                  {"★".repeat(c.score)}
+                </span>
               </div>
               <p className="text-sm text-muted-foreground">{c.comment}</p>
             </div>

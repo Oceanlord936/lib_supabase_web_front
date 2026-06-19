@@ -33,22 +33,28 @@ export default function Page() {
     fetchFavorites();
   }, []);
 
+  // we write this as sepraet function as when user un fav we not only need to remove favorite
+  // also need to remove the rating of him on that library
   const handleRemoveFavorite = async (libraryId: string) => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // use user id , library id to remove that row from fav table
-    const { error } = await supabase
-      .from("favorites")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("library_id", libraryId);
+    const [{ error: favError }, { error: ratingError }] = await Promise.all([
+      supabase
+        .from("favorites")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("library_id", libraryId),
+      supabase
+        .from("ratings")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("library_id", libraryId),
+    ]);
 
-    // success remove , we build a new libarary state without that library
-    // so it willtrigger re-render of the libarary cards
-    if (!error) {
+    if (!favError && !ratingError) {
       setLibraries((prev) => prev.filter((lib) => lib.id !== libraryId));
     }
   };
